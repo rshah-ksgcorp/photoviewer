@@ -77,7 +77,7 @@
         showCloseBtn = [[command.arguments objectAtIndex:3] boolValue];
         copyToReference = [[command.arguments objectAtIndex:4] boolValue];
 
-        if ([url rangeOfString:@"http"].location == 0) {
+        if ([url rangeOfString:@"http"].location != NSNotFound) {
             copyToReference = true;
         }
 
@@ -108,18 +108,6 @@
                         });
                     }
 
-                } else {
-                    dispatch_async(dispatch_get_main_queue(), ^{
-                        [activityIndicator stopAnimating];
-                        [self closeImage];
-                        // show an alert to the user
-                        UIAlertView *alert = [[UIAlertView alloc] initWithTitle:@"Photo viewer error"
-                                                                        message:@"The file to show is not a valid image, or could not be loaded."
-                                                                       delegate:self
-                                                              cancelButtonTitle:@"OK"
-                                                              otherButtonTitles:nil];
-                        [alert show];
-                    });
                 }
             }];
             pluginResult = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
@@ -134,23 +122,24 @@
 - (NSURL *)localFileURLForImage:(NSString *)image
 {
     NSString* webStringURL = [image stringByAddingPercentEncodingWithAllowedCharacters:[NSCharacterSet URLFragmentAllowedCharacterSet]];
-    NSURL* fileURL = [NSURL URLWithString:webStringURL];
-
-    if (copyToReference && ![fileURL isFileReferenceURL]) {
-        NSError* error = nil;
-        NSData *data = [NSData dataWithContentsOfURL:fileURL options:0 error:&error];
-        if (error)
-            return nil;
+    NSURL* fileURL = [NSURL URLWithString:image];
+    NSArray *urlArray = [image componentsSeparatedByString:@"?"];
+    NSArray *urlSubArray = [[urlArray objectAtIndex:0] componentsSeparatedByString:@"/"];
+    NSURL *tmpDirURL = [NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES];
+    NSString *filename = [NSString stringWithFormat:@"%@-%@.jpeg",[urlSubArray objectAtIndex:[urlSubArray count] - 2],[urlSubArray objectAtIndex:[urlSubArray count] - 1]];
+    NSFileManager *fileManager = [NSFileManager defaultManager];
+    fileURL = [tmpDirURL URLByAppendingPathComponent:filename];
+    
+    if ([fileManager fileExistsAtPath:fileURL.path]){
         
-        if( data ) {
-            // save this image to a temp folder
-            NSURL *tmpDirURL = [NSURL fileURLWithPath:NSTemporaryDirectory() isDirectory:YES];
-            NSString *filename = [[NSUUID UUID] UUIDString];
-            NSString *ext = [self contentTypeForImageData:data];
-            if (ext == nil)
-                return nil;
-            fileURL = [[tmpDirURL URLByAppendingPathComponent:filename] URLByAppendingPathExtension:ext];
-            [[NSFileManager defaultManager] createFileAtPath:[fileURL path] contents:data attributes:nil];
+    }else{
+       if (copyToReference && ![fileURL isFileReferenceURL]) {
+           fileURL = [NSURL URLWithString:image];
+           NSData *data = [NSData dataWithContentsOfURL:fileURL];
+            if( data ) {
+                fileURL = [tmpDirURL URLByAppendingPathComponent:filename];
+                [[NSFileManager defaultManager] createFileAtPath:[fileURL path] contents:data attributes:nil];
+            }
         }
     }
     return fileURL;
@@ -214,10 +203,11 @@
 
     if(showCloseBtn) {
         closeBtn = [UIButton buttonWithType:UIButtonTypeSystem];
-        [closeBtn setTitle:@"✕" forState:UIControlStateNormal];
+        [closeBtn setTitle:@"←" forState:UIControlStateNormal];
         closeBtn.titleLabel.font = [UIFont systemFontOfSize: 32];
-        [closeBtn setTitleColor:[UIColor colorWithRed:255/255.0 green:255/255.0 blue:255/255.0 alpha:0.6] forState:UIControlStateNormal];
-        [closeBtn setFrame:CGRectMake(0, viewHeight - 50, 50, 50)];
+        [closeBtn setTitleColor:[UIColor whiteColor] forState:UIControlStateNormal];
+//        [closeBtn setTitleColor:[UIColor colorWithRed:255/255.0 green:255/255.0 blue:255/255.0 alpha:0.6] forState:UIControlStateNormal];
+        [closeBtn setFrame:CGRectMake(0, 50, 50, 50)];
         [closeBtn setBackgroundColor:[UIColor colorWithRed:0.0 green:0.0 blue:0.0 alpha:0.0]];
         [closeBtn addTarget:self action:@selector(closeButtonPressed:) forControlEvents:UIControlEventTouchUpInside];
         [self.viewController.view addSubview:closeBtn];
